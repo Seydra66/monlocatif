@@ -185,9 +185,9 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 .txamt{font-size:14px;font-weight:700;font-family:'Syne',sans-serif;flex-shrink:0}
 
 /* MODAL */
-.moverlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;display:none;align-items:flex-end;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.moverlay{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(0,0,0,.8);z-index:200;display:none;align-items:flex-end;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .moverlay.on{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--border);border-top:1px solid var(--border2);border-radius:24px 24px 0 0;padding:22px 18px calc(var(--sb) + 22px);width:100%;max-height:92dvh;overflow-y:auto;animation:slideUp .3s cubic-bezier(.32,.72,0,1)}
+.modal{background:var(--bg2);border:1px solid var(--border);border-top:1px solid var(--border2);border-radius:24px 24px 0 0;padding:22px 18px calc(var(--sb) + 22px);width:100%;max-height:92dvh;overflow-y:auto;animation:slideUp .3s cubic-bezier(.32,.72,0,1);touch-action:pan-y;will-change:transform}
 @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
 .mhandle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 20px}
 .mtitle{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:20px}
@@ -1426,41 +1426,57 @@ function handleImport(e) {
 // ============================================================
 // SWIPE TO CLOSE MODALS
 // ============================================================
-document.querySelectorAll('.modal').forEach(modal => {
-  let startY = 0, currentY = 0, isDragging = false;
-  const overlay = modal.parentElement;
+function initSwipeClose() {
+  document.querySelectorAll('.moverlay').forEach(overlay => {
+    const modal = overlay.querySelector('.modal');
+    if (!modal) return;
+    let startY = 0, lastY = 0, dragging = false;
 
-  modal.addEventListener('touchstart', e => {
-    // Only trigger from handle area (top 50px)
-    if (e.target.closest('.mhandle') || e.touches[0].clientY - modal.getBoundingClientRect().top < 60) {
-      startY = e.touches[0].clientY;
-      isDragging = true;
-    }
-  }, {passive: true});
-
-  modal.addEventListener('touchmove', e => {
-    if (!isDragging) return;
-    currentY = e.touches[0].clientY;
-    const diff = currentY - startY;
-    if (diff > 0) {
-      modal.style.transform = `translateY(${diff}px)`;
+    const onStart = e => {
+      const touch = e.touches[0];
+      // Only start drag if scrolled to top of modal
+      if (modal.scrollTop > 4) return;
+      startY = touch.clientY;
+      lastY = touch.clientY;
+      dragging = true;
       modal.style.transition = 'none';
-    }
-  }, {passive: true});
+    };
 
-  modal.addEventListener('touchend', e => {
-    if (!isDragging) return;
-    isDragging = false;
-    const diff = currentY - startY;
-    modal.style.transition = '';
-    if (diff > 100) {
-      overlay.classList.remove('on');
-      modal.style.transform = '';
-    } else {
-      modal.style.transform = '';
-    }
+    const onMove = e => {
+      if (!dragging) return;
+      const touch = e.touches[0];
+      const diff = touch.clientY - startY;
+      lastY = touch.clientY;
+      if (diff > 0) {
+        modal.style.transform = `translateY(${diff}px)`;
+        // Prevent page scroll when dragging modal down
+        if (diff > 8) e.preventDefault();
+      }
+    };
+
+    const onEnd = e => {
+      if (!dragging) return;
+      dragging = false;
+      const diff = lastY - startY;
+      modal.style.transition = 'transform .28s cubic-bezier(.32,.72,0,1)';
+      if (diff > 90) {
+        modal.style.transform = `translateY(100%)`;
+        setTimeout(() => {
+          overlay.classList.remove('on');
+          modal.style.transform = '';
+          modal.style.transition = '';
+        }, 280);
+      } else {
+        modal.style.transform = '';
+        setTimeout(() => { modal.style.transition = ''; }, 280);
+      }
+    };
+
+    modal.addEventListener('touchstart', onStart, { passive: true });
+    modal.addEventListener('touchmove', onMove, { passive: false });
+    modal.addEventListener('touchend', onEnd, { passive: true });
   });
-});
+}
 
 // ============================================================
 // EDIT BIEN
@@ -1629,6 +1645,7 @@ function openM(id) {
 hydrate();
 refreshDash();
 document.getElementById('tx-date').value=today();
+initSwipeClose();
 </script>
 </body>
 </html>
